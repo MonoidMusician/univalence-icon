@@ -1,5 +1,4 @@
 {
-  "name": "univalence",
   "ignore": [
     "**/.*",
     "node_modules",
