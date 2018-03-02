@@ -2,69 +2,65 @@ module Main where
 
 import Prelude
 
-import Data.Maybe (Maybe(..))
-import Data.Const (Const)
 import Control.Monad.Eff (Eff)
-import Control.Monad.Aff (Aff)
-import Halogen.Aff (awaitBody, runHalogenAff)
-import Halogen.VDom.Driver (runUI)
-import Halogen as H
-import Halogen.HTML as HH
-import Halogen.Behavior as HB
-import Halogen.HTML.Properties as HP
-import FRP.Behavior (Behavior)
-import FRP.Behavior.Time (seconds)
-import Svg.Elements (svg, path)
-import Svg.Attributes as SVG
+import DOM.HTML
+import DOM.HTML.Types (htmlDocumentToNonElementParentNode)
+import DOM.HTML.Window
+import DOM.Node.NonElementParentNode
+import DOM.Node.Types (ElementId(..))
+import DOM.Node.Element (setAttribute)
+import Partial.Unsafe (unsafePartial)
+import Data.Maybe
 import Math ((%))
-import Unsafe.Coerce (unsafeCoerce)
+import FRP.Behavior (Behavior, animate)
+import FRP.Behavior.Time (seconds)
 
-type State = {}
-type Slot = Unit
-type SubQuery = HB.Query ( hover :: Boolean ) ( style :: Maybe String, d :: Maybe String ) Unit Void
-data Query a
-  = DoNothing a
+curve :: State -> String
+curve { v, e, c } =
+  let
+    v8 = show $ 8.0*c
+    _v8 = "-"<>v8
+    v16 = show $ 16.0*c
+    _v16 = "-"<>v16
+    x = show $ 16.0-6.0*e
+    y = show $ 32.0 - 16.0*(v+0.5*e) + 8.0*c
+  in
+    "m "<>x<>","<>y<>" c 16,"<>_v16<>" 24,"<>_v16<>" 48,"<>_v8<>" 24,"<>v8<>" 32,"<>v8<>" 48,"<>_v8
 
-component :: forall u v. H.Component HH.HTML Query u v (Aff _)
-component = H.lifecycleParentComponent
-  { initialState: const {}
-  , initializer: Nothing
-  , finalizer: Nothing
-  , receiver: const Nothing
-  , eval
-  , render
-  } where
-    b :: { hover :: Behavior Boolean } -> { style :: Behavior (Maybe String), d :: Behavior (Maybe String) }
-    b { hover } =
-      { d: cycle <#> \t -> pure
-          let
-            v8 = show $ 8.0*t
-            _v8 = "-"<>v8
-            v16 = show $ 16.0*t
-            _v16 = "-"<>v16
-            s = show $ 32.0 + 8.0*t
-          in
-            "m 16,"<>s<>" c 16,"<>_v16<>" 24,"<>_v16<>" 48,"<>_v8<>" 24,"<>v8<>" 32,"<>v8<>" 48,"<>_v8
-      , style: pure $ pure
-          """"
-          fill: none;
-          stroke: #000000;
-          stroke-width:8;
-          stroke-linecap:butt;
-          stroke-miterlimit:4;
-          stroke-dasharray:none;
-          stroke-opacity:1
-          """
-      }
-    cycle = seconds <#> \t -> t % 6.0
-    bc = (HB.behavioralComponent (\p _ -> path p) <@> b) \_ el _ ->
-      el [HP.id_ "hi"] []
-    plain c = HH.slot unit c unit absurd
-    parent = svg [unsafeCoerce SVG.width 128.0, unsafeCoerce SVG.height 128.0]
-    render :: State -> H.ParentHTML Query SubQuery Slot (Aff _)
-    render _ = parent [plain bc]
-    eval :: Query ~> H.ParentDSL State Query SubQuery Slot v (Aff _)
-    eval (DoNothing a) = pure a
+type State = { v :: Number, c :: Number, h :: Number, e :: Number }
+
+render :: State -> { lower :: String, mid :: String, curved :: String, rot :: String }
+render { v, e, c, h } =
+  let across y h = "m 16," <> show y <> " h " <> show h in
+  { lower: across (96.0 - 16.0*v) (96.0*h)
+  , mid: across (64.0 - 16.0*v) 96.0
+  , curved: curve { v, e, c, h }
+  , rot: "rotate(" <> show (-33.0*e) <> " 16 32)"
+  }
+
+cyclic :: Behavior Number
+cyclic = seconds <#> \t -> (t*2.5) % 5.5
+
+pos :: Number -> State
+pos t
+  | t < 1.0 = { v: 0.0, e: 0.0, c: t, h: t }
+  | t < 3.0 = { v: 0.0, e: 0.0, c: 1.0, h: 1.0 }
+  | t < 4.0 = { v: 2.0*(t-3.0), e: 4.0*(t-3.0), c: 1.0, h: 1.0 }
+  | t < 5.0 = { v: 2.0, e: 2.0, c: 1.0, h: 1.0 }
+  | otherwise = { v: 0.0, e: 0.0, c: 0.0, h: 0.0 }
 
 main :: Eff _ Unit
-main = runHalogenAff $ awaitBody >>= runUI component unit
+main = do
+  d <- window >>= document >>> map htmlDocumentToNonElementParentNode
+  let get i = unsafePartial fromJust <$> getElementById i d
+  lower <- get (ElementId "lower")
+  mid <- get (ElementId "mid")
+  curved <- get (ElementId "curved")
+  let b = cyclic <#> render <<< pos
+  _ <- animate b \scene -> do
+    let set d e = setAttribute "d" d e
+    set scene.lower lower
+    set scene.mid mid
+    set scene.curved curved
+    setAttribute "transform" scene.rot curved
+  pure unit

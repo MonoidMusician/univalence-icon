@@ -23,27 +23,7 @@
          id="upper" />
     </g>
   </svg>
-  <script>
-  let curved = document.getElementById("curved");
-  console.log(curved);
-  let mkD = v => {
-    let v8 = v*8;
-    let v16 = v*16;
-    let _v8 = -v8;
-    let _v16 = -v16;
-    let s = 32 + v8;
-    return "m 16,"+s+" c 16,"+_v16+" 24,"+_v16+" 48,"+_v8+" 24,"+v8+" 32,"+v8+" 48,"+_v8;
-  };
-  let setD = v => curved.attributes.d.value = mkD(v);
-  let start = Date.now();
-  let next = function() {
-    let t = (Date.now() - start)/1000;
-    let n = t % 2;
-    let v = n > 1 ? 2-n : n;
-    setD(v);
-    requestAnimationFrame(next);
-  };
-  next();
+  <script src="Univalence.js">
   </script>
 </body>
 </html>
