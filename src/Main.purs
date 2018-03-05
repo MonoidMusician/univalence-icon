@@ -3,12 +3,15 @@ module Main where
 import Prelude
 
 import Control.Monad.Eff (Eff)
+import DOM (DOM)
 import DOM.HTML (window)
-import DOM.HTML.Types (htmlDocumentToNonElementParentNode)
+import DOM.HTML.Types (htmlDocumentToNonElementParentNode, htmlDocumentToDocument)
 import DOM.HTML.Window (document)
+import DOM.HTML.Document (body)
 import DOM.Node.NonElementParentNode (getElementById)
-import DOM.Node.Types (ElementId(..))
+import DOM.Node.Types (ElementId(..), Element)
 import DOM.Node.Element (setAttribute)
+import DOM.Node.Document (createElement)
 import Partial.Unsafe (unsafePartial)
 import Data.Maybe (fromJust)
 import Math ((%))
@@ -19,6 +22,12 @@ import DOM.Event.EventTarget as EL
 import Control.Monad.Eff.Ref as Ref
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.Eff.Console (logShow)
+import Control.Monad.Eff.Uncurried (EffFn2, runEffFn2)
+import Data.Foldable (for_)
+import Data.Int (toNumber)
+import Data.Array ((..))
+import Data.String (trim)
+import DOM.Classy.Node (appendChild)
 
 curve :: State -> String
 curve { v, e, c } =
@@ -51,10 +60,14 @@ cyclic = seconds <#> \t -> (t*2.5) % rollover
 pos :: Number -> State
 pos t
   | t < 1.0 = { v: 0.0, e: 0.0, c: t, h: t }
-  | t < 3.0 = { v: 0.0, e: 0.0, c: 1.0, h: 1.0 }
-  | t < 4.0 = { v: 2.0*(t-3.0), e: 4.0*(t-3.0), c: 1.0, h: 1.0 }
-  | t < 5.0 = { v: 2.0, e: 2.0, c: 1.0, h: 1.0 }
+  | t < 2.0 = { v: 0.0, e: 0.0, c: 1.0, h: 1.0 }
+  | t < 2.5 = { v: 0.0, e: 1.0*(t-2.0)*(t-2.0), c: 1.0, h: 1.0 }
+  | t < 3.5 = { v: 2.0*(t-2.5), e: 1.0*(t-2.0)*(t-2.0), c: 1.0, h: 1.0 }
+  | t < 4.0 = { v: 2.0, e: 2.0, c: 1.0, h: 1.0 }
   | otherwise = { v: 0.0, e: 0.0, c: 0.0, h: 0.0 }
+
+foreign import canvg :: forall e. EffFn2 ( dom :: DOM | e ) Element String Unit
+foreign import saveCanvas :: forall e. EffFn2 ( dom :: DOM | e ) Element String Unit
 
 main :: Eff _ Unit
 main = do
@@ -83,5 +96,30 @@ main = do
       s <- Ref.readRef step
       renderAt s
       logShow (s / astep)
+    cclick = EL.eventListener \_ -> do
+      for_ (0..44) \frame -> do
+        let
+          scene = infos $ pos ((toNumber frame) / 8.0)
+          paths =
+            """
+            <path d=""" <> show scene.lower <> """></path>
+            <path d=""" <> show scene.mid <> """></path>
+            <path d=""" <> show scene.curved <> """ transform=""" <> show scene.rot <> """></path>
+            """
+          svg =
+            """
+            <svg>
+              <g id="layer1" style="fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+              """ <> paths <> """
+              </g>
+            </svg>
+            """
+        el <- createElement "canvas" <<< htmlDocumentToDocument =<< document w
+        setAttribute "width" "128" el
+        setAttribute "height" "128" el
+        _ <- appendChild el <<< unsafePartial fromJust =<< body =<< document w
+        runEffFn2 canvg el (trim svg)
+        runEffFn2 saveCanvas el ("frame" <> show frame)
   EL.addEventListener (EventType "click") listener false (unsafeCoerce w)
+  EL.addEventListener (EventType "dblclick") cclick false (unsafeCoerce w)
   pure unit
