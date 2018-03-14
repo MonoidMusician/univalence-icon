@@ -100,9 +100,9 @@ main = do
       let forFrame frame = infos $ pos $ frame / 8.0
       for_ (0..44) \frame -> do
         let
-          blur = 15
+          blur = 13
           blurred = 1.0 / toNumber blur
-          allpaths = foldMap blurFrame (1..blur)
+          allpaths = foldMap blurFrame (4..(blur-3))
           blurFrame f = paths (forFrame (toNumber frame + toNumber f * blurred))
           paths scene =
             """

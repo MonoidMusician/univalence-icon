@@ -21705,6 +21705,7 @@ var Data_Function = require("../Data.Function");
 var Data_Functor = require("../Data.Functor");
 var Data_Int = require("../Data.Int");
 var Data_Maybe = require("../Data.Maybe");
+var Data_Monoid = require("../Data.Monoid");
 var Data_Ord = require("../Data.Ord");
 var Data_Ring = require("../Data.Ring");
 var Data_Semigroup = require("../Data.Semigroup");
@@ -21846,10 +21847,19 @@ var main = function __do() {
         };
     });
     var cclick = DOM_Event_EventTarget.eventListener(function (v7) {
+        var forFrame = function (frame) {
+            return infos(pos(frame / 8.0));
+        };
         return Data_Foldable.for_(Control_Monad_Eff.applicativeEff)(Data_Foldable.foldableArray)(Data_Array.range(0)(44))(function (frame) {
-            var scene = infos(pos(Data_Int.toNumber(frame) / 8.0));
-            var paths = "\x0a            <path d=" + (Data_Show.show(Data_Show.showString)(scene.lower) + ("></path>\x0a            <path d=" + (Data_Show.show(Data_Show.showString)(scene.mid) + ("></path>\x0a            <path d=" + (Data_Show.show(Data_Show.showString)(scene.curved) + (" transform=" + (Data_Show.show(Data_Show.showString)(scene.rot) + "></path>\x0a            ")))))));
-            var svg = "\x0a            <svg>\x0a              <g id=\"layer1\" style=\"fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1\">\x0a              " + (paths + "\x0a              </g>\x0a            </svg>\x0a            ");
+            var paths = function (scene) {
+                return "\x0a            <path d=" + (Data_Show.show(Data_Show.showString)(scene.lower) + ("></path>\x0a            <path d=" + (Data_Show.show(Data_Show.showString)(scene.mid) + ("></path>\x0a            <path d=" + (Data_Show.show(Data_Show.showString)(scene.curved) + (" transform=" + (Data_Show.show(Data_Show.showString)(scene.rot) + "></path>\x0a            ")))))));
+            };
+            var blurred = 1.0 / Data_Int.toNumber(13);
+            var blurFrame = function (f) {
+                return paths(forFrame(Data_Int.toNumber(frame) + Data_Int.toNumber(f) * blurred));
+            };
+            var allpaths = Data_Foldable.foldMap(Data_Foldable.foldableArray)(Data_Monoid.monoidString)(blurFrame)(Data_Array.range(4)(13 - 3 | 0));
+            var svg = "\x0a            <svg>\x0a              <g id=\"layer1\" style=\"fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:" + (Data_Show.show(Data_Show.showNumber)(0.25) + ("\">\x0a              " + (allpaths + "\x0a              </g>\x0a            </svg>\x0a            ")));
             return function __do() {
                 var v8 = Control_Bind.bindFlipped(Control_Monad_Eff.bindEff)(function ($41) {
                     return DOM_Node_Document.createElement("canvas")(DOM_HTML_Types.htmlDocumentToDocument($41));
@@ -21879,7 +21889,7 @@ module.exports = {
     saveCanvas: $foreign.saveCanvas
 };
 
-},{"../Control.Applicative":3,"../Control.Bind":9,"../Control.Monad.Eff":28,"../Control.Monad.Eff.Console":18,"../Control.Monad.Eff.Ref":22,"../Control.Monad.Eff.Uncurried":24,"../Control.Semigroupoid":43,"../DOM":72,"../DOM.Classy.Node":44,"../DOM.Event.EventTarget":47,"../DOM.Event.Types":49,"../DOM.HTML":58,"../DOM.HTML.Document":52,"../DOM.HTML.Types":54,"../DOM.HTML.Window":56,"../DOM.Node.Document":60,"../DOM.Node.Element":62,"../DOM.Node.NonElementParentNode":67,"../DOM.Node.Types":68,"../Data.Array":77,"../Data.Boolean":86,"../Data.EuclideanRing":100,"../Data.Foldable":104,"../Data.Function":110,"../Data.Functor":113,"../Data.Int":122,"../Data.Maybe":133,"../Data.Ord":149,"../Data.Ring":152,"../Data.Semigroup":156,"../Data.Semiring":158,"../Data.Show":160,"../Data.String":164,"../Data.Unit":174,"../FRP.Behavior":177,"../FRP.Behavior.Time":176,"../FRP.Event":182,"../Math":189,"../Partial.Unsafe":191,"../Prelude":194,"../Unsafe.Coerce":197,"./foreign":186}],188:[function(require,module,exports){
+},{"../Control.Applicative":3,"../Control.Bind":9,"../Control.Monad.Eff":28,"../Control.Monad.Eff.Console":18,"../Control.Monad.Eff.Ref":22,"../Control.Monad.Eff.Uncurried":24,"../Control.Semigroupoid":43,"../DOM":72,"../DOM.Classy.Node":44,"../DOM.Event.EventTarget":47,"../DOM.Event.Types":49,"../DOM.HTML":58,"../DOM.HTML.Document":52,"../DOM.HTML.Types":54,"../DOM.HTML.Window":56,"../DOM.Node.Document":60,"../DOM.Node.Element":62,"../DOM.Node.NonElementParentNode":67,"../DOM.Node.Types":68,"../Data.Array":77,"../Data.Boolean":86,"../Data.EuclideanRing":100,"../Data.Foldable":104,"../Data.Function":110,"../Data.Functor":113,"../Data.Int":122,"../Data.Maybe":133,"../Data.Monoid":140,"../Data.Ord":149,"../Data.Ring":152,"../Data.Semigroup":156,"../Data.Semiring":158,"../Data.Show":160,"../Data.String":164,"../Data.Unit":174,"../FRP.Behavior":177,"../FRP.Behavior.Time":176,"../FRP.Event":182,"../Math":189,"../Partial.Unsafe":191,"../Prelude":194,"../Unsafe.Coerce":197,"./foreign":186}],188:[function(require,module,exports){
 "use strict";
 
 // module Math
