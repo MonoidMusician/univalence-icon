@@ -3,31 +3,31 @@ module Main where
 import Prelude
 
 import Control.Monad.Eff (Eff)
+import Control.Monad.Eff.Console (logShow)
+import Control.Monad.Eff.Ref as Ref
+import Control.Monad.Eff.Uncurried (EffFn2, runEffFn2)
 import DOM (DOM)
+import DOM.Classy.Node (appendChild)
+import DOM.Event.EventTarget as EL
+import DOM.Event.Types (EventType(..))
 import DOM.HTML (window)
+import DOM.HTML.Document (body)
 import DOM.HTML.Types (htmlDocumentToNonElementParentNode, htmlDocumentToDocument)
 import DOM.HTML.Window (document)
-import DOM.HTML.Document (body)
+import DOM.Node.Document (createElement)
+import DOM.Node.Element (setAttribute)
 import DOM.Node.NonElementParentNode (getElementById)
 import DOM.Node.Types (ElementId(..), Element)
-import DOM.Node.Element (setAttribute)
-import DOM.Node.Document (createElement)
-import Partial.Unsafe (unsafePartial)
+import Data.Array ((..))
+import Data.Foldable (foldMap, for_)
+import Data.Int (toNumber)
 import Data.Maybe (fromJust)
-import Math ((%))
+import Data.String (trim)
 import FRP.Behavior (Behavior, animate)
 import FRP.Behavior.Time (seconds)
-import DOM.Event.Types (EventType(..))
-import DOM.Event.EventTarget as EL
-import Control.Monad.Eff.Ref as Ref
+import Math ((%))
+import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Monad.Eff.Console (logShow)
-import Control.Monad.Eff.Uncurried (EffFn2, runEffFn2)
-import Data.Foldable (for_)
-import Data.Int (toNumber)
-import Data.Array ((..))
-import Data.String (trim)
-import DOM.Classy.Node (appendChild)
 
 curve :: State -> String
 curve { v, e, c } =
@@ -97,10 +97,14 @@ main = do
       renderAt s
       logShow (s / astep)
     cclick = EL.eventListener \_ -> do
+      let forFrame frame = infos $ pos $ frame / 8.0
       for_ (0..44) \frame -> do
         let
-          scene = infos $ pos ((toNumber frame) / 8.0)
-          paths =
+          blur = 15
+          blurred = 1.0 / toNumber blur
+          allpaths = foldMap blurFrame (1..blur)
+          blurFrame f = paths (forFrame (toNumber frame + toNumber f * blurred))
+          paths scene =
             """
             <path d=""" <> show scene.lower <> """></path>
             <path d=""" <> show scene.mid <> """></path>
@@ -109,8 +113,8 @@ main = do
           svg =
             """
             <svg>
-              <g id="layer1" style="fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
-              """ <> paths <> """
+              <g id="layer1" style="fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """">
+              """ <> allpaths <> """
               </g>
             </svg>
             """
