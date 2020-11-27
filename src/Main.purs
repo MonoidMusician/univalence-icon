@@ -2,32 +2,32 @@ module Main where
 
 import Prelude
 
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (logShow)
-import Control.Monad.Eff.Ref as Ref
-import Control.Monad.Eff.Uncurried (EffFn2, runEffFn2)
-import DOM (DOM)
-import DOM.Classy.Node (appendChild)
-import DOM.Event.EventTarget as EL
-import DOM.Event.Types (EventType(..))
-import DOM.HTML (window)
-import DOM.HTML.Document (body)
-import DOM.HTML.Types (htmlDocumentToNonElementParentNode, htmlDocumentToDocument)
-import DOM.HTML.Window (document)
-import DOM.Node.Document (createElement)
-import DOM.Node.Element (setAttribute)
-import DOM.Node.NonElementParentNode (getElementById)
-import DOM.Node.Types (ElementId(..), Element)
 import Data.Array ((..))
 import Data.Foldable (foldMap, for_)
 import Data.Int (toNumber)
 import Data.Maybe (fromJust)
-import Data.String (trim)
+import Data.Newtype (unwrap)
+import Effect (Effect)
+import Effect.Ref as Ref
+import Effect.Uncurried (EffectFn1, EffectFn2, EffectFn3, runEffectFn1, runEffectFn2, runEffectFn3)
 import FRP.Behavior (Behavior, animate)
 import FRP.Behavior.Time (seconds)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
+import Web.DOM (Element)
+import Web.DOM.Document (createElement)
+import Web.DOM.Element (setAttribute)
+import Web.DOM.Element as Element
+import Web.DOM.Node (appendChild)
+import Web.DOM.NonElementParentNode (getElementById)
+import Web.Event.Event (EventType(..))
+import Web.Event.EventTarget as EL
+import Web.HTML (window)
+import Web.HTML.HTMLDocument (body)
+import Web.HTML.HTMLDocument as HTMLDocument
+import Web.HTML.HTMLElement as HTMLElement
+import Web.HTML.Window (document)
 
 curve :: State -> String
 curve { v, e, c } =
@@ -45,7 +45,7 @@ type State = { v :: Number, c :: Number, h :: Number, e :: Number }
 
 infos :: State -> { lower :: String, mid :: String, curved :: String, rot :: String }
 infos { v, e, c, h } =
-  let across y h = "m 16," <> show y <> " h " <> show h in
+  let across y w = "m 16," <> show y <> " h " <> show w in
   { lower: across (96.0 - 16.0*v) (96.0*h)
   , mid: across (64.0 - 16.0*v) 96.0
   , curved: curve { v, e, c, h }
@@ -55,7 +55,7 @@ infos { v, e, c, h } =
 rollover = 5.5 :: Number
 
 cyclic :: Behavior Number
-cyclic = seconds <#> \t -> (t*2.5) % rollover
+cyclic = seconds <#> unwrap >>> \t -> (t*2.5) % rollover
 
 pos :: Number -> State
 pos t
@@ -63,23 +63,25 @@ pos t
   | t < 2.0 = { v: 0.0, e: 0.0, c: 1.0, h: 1.0 }
   | t < 2.5 = { v: 0.0, e: 1.0*(t-2.0)*(t-2.0), c: 1.0, h: 1.0 }
   | t < 3.5 = { v: 2.0*(t-2.5), e: 1.0*(t-2.0)*(t-2.0), c: 1.0, h: 1.0 }
-  | t < 4.0 = { v: 2.0, e: 2.0, c: 1.0, h: 1.0 }
-  | otherwise = { v: 0.0, e: 0.0, c: 0.0, h: 0.0 }
+  | otherwise = { v: 2.0, e: 2.0, c: 1.0, h: 1.0 }
 
-foreign import canvg :: forall e. EffFn2 ( dom :: DOM | e ) Element String Unit
-foreign import saveCanvas :: forall e. EffFn2 ( dom :: DOM | e ) Element String Unit
+foreign import data Zip :: Type
+foreign import canvg :: EffectFn2 Element String Unit
+foreign import saveCanvas :: EffectFn3 Element String Zip Unit
+foreign import mkZip :: Effect Zip
+foreign import saveZip :: EffectFn1 Zip Unit
 
-main :: Eff _ Unit
+main :: Effect Unit
 main = do
   w <- window
-  d <- document w <#> htmlDocumentToNonElementParentNode
+  d <- document w <#> HTMLDocument.toNonElementParentNode
   let get i = unsafePartial fromJust <$> getElementById i d
-  lower <- get (ElementId "lower")
-  mid <- get (ElementId "mid")
-  curved <- get (ElementId "curved")
+  lower <- get "lower"
+  mid <- get "mid"
+  curved <- get "curved"
   let
     render scene = do
-      let set d e = setAttribute "d" d e
+      let set = setAttribute "d"
       set scene.lower lower
       set scene.mid mid
       set scene.curved curved
@@ -87,43 +89,47 @@ main = do
     renderAt = pos >>> infos >>> render
   canceller <- animate cyclic renderAt
   let astep = 1.0/8.0
-  step <- Ref.newRef (-2.0 * astep)
-  let
-    listener = EL.eventListener \_ -> do
-      s0 <- Ref.readRef step
-      when (s0 < 0.0) canceller
-      Ref.modifyRef step $ (_ + astep) >>> (_ % rollover)
-      s <- Ref.readRef step
-      renderAt s
-      logShow (s / astep)
-    cclick = EL.eventListener \_ -> do
-      let forFrame frame = infos $ pos $ frame / 8.0
-      for_ (0..44) \frame -> do
-        let
-          blur = 13
-          blurred = 1.0 / toNumber blur
-          allpaths = foldMap blurFrame (4..(blur-3))
-          blurFrame f = paths (forFrame (toNumber frame + toNumber f * blurred))
-          paths scene =
-            """
-            <path d=""" <> show scene.lower <> """></path>
-            <path d=""" <> show scene.mid <> """></path>
-            <path d=""" <> show scene.curved <> """ transform=""" <> show scene.rot <> """></path>
-            """
-          svg =
-            """
-            <svg>
-              <g id="layer1" style="fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """">
-              """ <> allpaths <> """
-              </g>
-            </svg>
-            """
-        el <- createElement "canvas" <<< htmlDocumentToDocument =<< document w
-        setAttribute "width" "128" el
-        setAttribute "height" "128" el
-        _ <- appendChild el <<< unsafePartial fromJust =<< body =<< document w
-        runEffFn2 canvg el (trim svg)
-        runEffFn2 saveCanvas el ("frame" <> show frame)
+  step <- Ref.new (-1.0 * astep)
+  listener <- EL.eventListener \_ -> do
+    s0 <- Ref.read step
+    when (s0 < 0.0) canceller
+    step # Ref.modify_ do (_ + astep) >>> (_ % rollover)
+    s <- Ref.read step
+    renderAt s
+    -- logShow (s / astep)
+  cclick <- EL.eventListener \_ -> do
+    let forFrame frame = infos $ pos $ frame / 8.0
+    zip <- mkZip
+    for_ (0..44) \frame -> do
+      let
+        blur = 13
+        blurred = 1.0 / toNumber blur
+        allpaths = foldMap blurFrame (4..(blur-3))
+        blurFrame f = paths (forFrame (toNumber frame + toNumber f * blurred))
+        paths scene =
+          """
+          <path d=""" <> show scene.lower <> """></path>
+          <path d=""" <> show scene.mid <> """></path>
+          <path d=""" <> show scene.curved <> """ transform=""" <> show scene.rot <> """></path>
+          """
+        svg =
+          """
+          <svg>
+            <g id="layer1" style="fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """">
+            """ <> allpaths <> """
+            </g>
+            <g id="layer2" style="fill:none;stroke:#ffffff;stroke-width:20;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """">
+            """ <> allpaths <> """
+            </g>
+          </svg>
+          """
+      el <- createElement "canvas" <<< HTMLDocument.toDocument =<< document w
+      setAttribute "width" "128" el
+      setAttribute "height" "128" el
+      _ <- appendChild (Element.toNode el) <<< HTMLElement.toNode <<< unsafePartial fromJust =<< body =<< document w
+      runEffectFn2 canvg el svg
+      runEffectFn3 saveCanvas el ("frame" <> show frame) zip
+    runEffectFn1 saveZip zip
   EL.addEventListener (EventType "click") listener false (unsafeCoerce w)
   EL.addEventListener (EventType "dblclick") cclick false (unsafeCoerce w)
   pure unit
