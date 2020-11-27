@@ -1,5 +1,4 @@
 exports.canvg = function(a,b) {
-  console.log(a,b);
   return canvg.Canvg.fromString(a.getContext('2d'),b).start();
 };
 exports.mkZip = function() {

@@ -52,17 +52,19 @@ infos { v, e, c, h } =
   , rot: "rotate(" <> show (-33.0*e) <> " 16 32)"
   }
 
-rollover = 5.5 :: Number
+rollover = 7.5 :: Number
 
 cyclic :: Behavior Number
 cyclic = seconds <#> unwrap >>> \t -> (t*2.5) % rollover
 
 pos :: Number -> State
 pos t
-  | t < 1.0 = { v: 0.0, e: 0.0, c: t, h: t }
-  | t < 2.0 = { v: 0.0, e: 0.0, c: 1.0, h: 1.0 }
-  | t < 2.5 = { v: 0.0, e: 1.0*(t-2.0)*(t-2.0), c: 1.0, h: 1.0 }
-  | t < 3.5 = { v: 2.0*(t-2.5), e: 1.0*(t-2.0)*(t-2.0), c: 1.0, h: 1.0 }
+  | t < 1.0 = { v: 0.0, e: 0.0, c: t, h: 0.0 }
+  | t < 2.0 = { v: 0.0, e: 0.0, c: 1.0, h: 0.0 }
+  | t < 3.0 = { v: 0.0, e: 0.0, c: 1.0, h: t-2.0 }
+  | t < 4.0 = { v: 0.0, e: 0.0, c: 1.0, h: 1.0 }
+  | t < 4.5 = { v: 0.0, e: 1.0*(t-4.0)*(t-4.0), c: 1.0, h: 1.0 }
+  | t < 5.5 = { v: 2.0*(t-4.5), e: 1.0*(t-4.0)*(t-4.0), c: 1.0, h: 1.0 }
   | otherwise = { v: 2.0, e: 2.0, c: 1.0, h: 1.0 }
 
 foreign import data Zip :: Type
@@ -97,10 +99,11 @@ main = do
     s <- Ref.read step
     renderAt s
     -- logShow (s / astep)
+  clicked <- Ref.new false
   cclick <- EL.eventListener \_ -> do
     let forFrame frame = infos $ pos $ frame / 8.0
     zip <- mkZip
-    for_ (0..44) \frame -> do
+    for_ (0..54) \frame -> do
       let
         blur = 13
         blurred = 1.0 / toNumber blur
@@ -115,10 +118,16 @@ main = do
         svg =
           """
           <svg>
-            <g id="layer1" style="fill:none;stroke:#000000;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """">
+            <g id="whiteborder" style="fill:none;stroke:#ffffff;stroke-width:20;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """ ">
+            """ <> mempty allpaths <> """
+            </g>
+            <g id="blacklines" style="fill:none;stroke:#000000;stroke-width:8;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """ ">
+            """ <> mempty allpaths <> """
+            </g>
+            <g id="darkmode" style="transform:translate(0 16);fill:none;stroke:#ffffff;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """ ">
             """ <> allpaths <> """
             </g>
-            <g id="layer2" style="fill:none;stroke:#ffffff;stroke-width:20;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """">
+            <g id="lightmode" style="fill:none;stroke:#222d3a;stroke-width:8;stroke-linecap:butt;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:""" <> show 0.25 <> """ ">
             """ <> allpaths <> """
             </g>
           </svg>
@@ -129,7 +138,9 @@ main = do
       _ <- appendChild (Element.toNode el) <<< HTMLElement.toNode <<< unsafePartial fromJust =<< body =<< document w
       runEffectFn2 canvg el svg
       runEffectFn3 saveCanvas el ("frame" <> show frame) zip
-    runEffectFn1 saveZip zip
+    Ref.read clicked >>= if _
+      then runEffectFn1 saveZip zip
+      else Ref.write true clicked
   EL.addEventListener (EventType "click") listener false (unsafeCoerce w)
   EL.addEventListener (EventType "dblclick") cclick false (unsafeCoerce w)
   pure unit
